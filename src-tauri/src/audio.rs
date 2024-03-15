@@ -1,7 +1,7 @@
-use crate::track::{Track, TrackDataHandle};
+use crate::track::{Track, TrackData, TrackDataHandle};
 use crate::TestState;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Device, FromSample, Sample, StreamConfig};
+use cpal::{Device, FromSample, Sample, SampleRate, StreamConfig};
 use tauri::State;
 
 const VOLUME: f64 = 0.06;
@@ -16,25 +16,18 @@ pub fn play_audio(path: String, _state: State<TestState>) -> Result<(), String> 
 
 fn play(path: String) -> anyhow::Result<()> {
     let device = get_device()?;
-    let config = get_config(&device)?;
-    stream_from_path(&path, &device, config)?;
-    Ok(())
+    Ok(stream_from_path(&path, &device)?)
 }
 
-fn stream_from_path(path: &String, device: &Device, config: StreamConfig) -> anyhow::Result<()> {
+fn stream_from_path(path: &String, device: &Device) -> anyhow::Result<()> {
     let track = Track::new(path.clone());
     let track_handle = track.get_data()?;
-    let config = if let Ok(mut handle) = track_handle.lock() {
-        handle.skip_to(180);
-        StreamConfig {
-            buffer_size: config.buffer_size,
-            channels: handle.channel_count as u16,
-            sample_rate: cpal::SampleRate(handle.sample_rate),
-        }
-    } else {
-        config
+    let Ok(handle) = track_handle.lock() else {
+        anyhow::bail!("Couldn't acquire handle lock")
     };
 
+    let config = get_config(device, &handle)?;
+    drop(handle);
     let handle_clone = track_handle.clone();
     let stream = device.build_output_stream(
         &config,
@@ -42,7 +35,7 @@ fn stream_from_path(path: &String, device: &Device, config: StreamConfig) -> any
             write_data(data, handle_clone.clone())
         },
         |err| eprintln!("an error occurred on the output audio stream: {}", err),
-        None, // None=blocking, Some(Duration)=timeout
+        None,
     )?;
     stream.play()?;
     std::thread::sleep(std::time::Duration::from_secs(200));
@@ -56,16 +49,17 @@ fn get_device() -> anyhow::Result<Device> {
     }
 }
 
-fn get_config(device: &Device) -> anyhow::Result<StreamConfig> {
-    let mut supported_configs_range = device.supported_output_configs()?;
-    match supported_configs_range.next() {
-        Some(config) => Ok(config.with_sample_rate(cpal::SampleRate(44100)).into()),
-        None => anyhow::bail!("no supported config?!"),
+fn get_config(device: &Device, track_data: &TrackData) -> anyhow::Result<StreamConfig> {
+    let channel_count = track_data.channel_count as u16;
+    let supported_configs = device.supported_output_configs()?;
+    for supported_config in supported_configs {
+        if channel_count == supported_config.channels() {
+            return Ok(supported_config
+                .with_sample_rate(SampleRate(track_data.sample_rate))
+                .into());
+        }
     }
-}
-
-fn get_channels_and_sample_rate(config: &StreamConfig) -> (f32, usize) {
-    (config.sample_rate.0 as f32, config.channels as usize)
+    anyhow::bail!("Couldn't build configuration")
 }
 
 fn write_data<T>(output: &mut [T], track_handle: TrackDataHandle)

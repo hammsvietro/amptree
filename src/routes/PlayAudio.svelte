@@ -1,14 +1,20 @@
 <script lang="ts">
 	import { invoke } from '@tauri-apps/api/tauri';
+	let errorMessage: String | null;
 
 	const playAudio = () => {
-		invoke('play_audio', { path: '/home/hammsvietro/test.flac' }).catch(console.log);
+		invoke('play_audio', { path: '/home/hammsvietro/test.flac' }).catch((err) => {
+			errorMessage = err;
+		});
 	};
 </script>
 
 <div class="counter">
-	<button on:click={playAudio} aria-label="Decrease the counter by one">Play audio</button>
+	<button on:click={playAudio}>Play audio</button>
 </div>
+{#if errorMessage != null}
+	<div style="color: red">{errorMessage}</div>
+{/if}
 
 <style>
 	.counter {
