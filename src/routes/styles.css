@@ -22,11 +22,9 @@ body {
 	background-attachment: fixed;
 	background-color: var(--color-bg-1);
 	background-size: 100vw 100vh;
-	background-image: radial-gradient(
-			50% 50% at 50% 50%,
+	background-image: radial-gradient(50% 50% at 50% 50%,
 			rgba(255, 255, 255, 0.75) 0%,
-			rgba(255, 255, 255, 0) 100%
-		),
+			rgba(255, 255, 255, 0) 100%),
 		linear-gradient(180deg, var(--color-bg-0) 0%, var(--color-bg-1) 15%, var(--color-bg-2) 50%);
 }
 
@@ -104,4 +102,54 @@ button:focus:not(:focus-visible) {
 	position: absolute;
 	width: 1px;
 	white-space: nowrap;
+}
+
+.songs {
+	background-color: white;
+	width: 20rem;
+	border-radius: 10px;
+	box-shadow: 1px 1px 5px black;
+}
+
+.songs ul {
+	text-decoration: none;
+	list-style: none;
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	padding: 1rem;
+	gap: 1rem;
+}
+
+.song-id, .song-length, .song-name{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+}
+
+.song-id {
+	grid-area: id;
+}
+
+.song-name {
+	grid-area: name;
+}
+
+.song-length {
+	grid-area: length;
+}
+
+.songs li {
+	border-radius: 5px;
+	padding: 0.8rem;
+	height: 2rem;
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	grid-template-rows: 1fr;
+	grid-template-areas: 
+	"id name name length";
+}
+
+.songs li:hover{
+	background-color:rgba(92, 54, 138, 0.28);
 }

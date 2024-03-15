@@ -3,6 +3,7 @@
 	import PlayAudio from './PlayAudio.svelte';
 	import welcome from '$lib/images/svelte-welcome.webp';
 	import welcome_fallback from '$lib/images/svelte-welcome.png';
+	export let data;
 </script>
 
 <svelte:head>
@@ -23,8 +24,20 @@
 	</h1>
 
 	<h2>
-		try editing <strong>src/routes/+page.svelte</strong>
+		Select your Fucking Song.
 	</h2>
+
+	<div class="songs">
+		<ul>
+			{#each data.items as item}
+				<li>
+					<div class="song-id">{item.id}</div>
+					<div class="song-name">{item.name}</div>
+					<div class="song-length">{(item.length / 60).toFixed(2).replace('.',':')}</div>
+				</li>
+			{/each}
+		</ul>
+	</div>
 
 	<Counter />
 	<PlayAudio />

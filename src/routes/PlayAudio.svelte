@@ -7,7 +7,7 @@
 			errorMessage = err;
 		});
 	};
-</script>
+</script> 
 
 <div class="counter">
 	<button on:click={playAudio}>Play audio</button>
