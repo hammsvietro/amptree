@@ -1,4 +1,6 @@
-use crate::track::{Track, TrackData, TrackDataHandle};
+use std::sync::{Arc, Mutex};
+
+use crate::track::{Track, TrackHandle};
 use crate::TestState;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, FromSample, Sample, SampleRate, StreamConfig};
@@ -16,18 +18,19 @@ pub fn play_audio(path: String, _state: State<TestState>) -> Result<(), String> 
 
 fn play(path: String) -> anyhow::Result<()> {
     let device = get_device()?;
-    Ok(stream_from_path(&path, &device)?)
+    stream_from_path(&path, &device)
 }
 
-fn stream_from_path(path: &String, device: &Device) -> anyhow::Result<()> {
-    let track = Track::new(path.clone());
-    let track_handle = track.get_data()?;
+fn stream_from_path(path: &str, device: &Device) -> anyhow::Result<()> {
+    let track = Track::new(path.to_owned());
+    let track_handle = track.get_track_handle()?;
     let Ok(handle) = track_handle.lock() else {
         anyhow::bail!("Couldn't acquire handle lock")
     };
 
     let config = get_config(device, &handle)?;
     drop(handle);
+
     let handle_clone = track_handle.clone();
     let stream = device.build_output_stream(
         &config,
@@ -49,7 +52,7 @@ fn get_device() -> anyhow::Result<Device> {
     }
 }
 
-fn get_config(device: &Device, track_data: &TrackData) -> anyhow::Result<StreamConfig> {
+fn get_config(device: &Device, track_data: &TrackHandle) -> anyhow::Result<StreamConfig> {
     let channel_count = track_data.channel_count as u16;
     let supported_configs = device.supported_output_configs()?;
     for supported_config in supported_configs {
@@ -62,18 +65,22 @@ fn get_config(device: &Device, track_data: &TrackData) -> anyhow::Result<StreamC
     anyhow::bail!("Couldn't build configuration")
 }
 
-fn write_data<T>(output: &mut [T], track_handle: TrackDataHandle)
+fn write_data<T>(output: &mut [T], track_handle: Arc<Mutex<TrackHandle>>)
 where
     T: Sample + FromSample<f64>,
 {
     if let Ok(mut track_handle) = track_handle.lock() {
         for frame in output.chunks_mut(track_handle.channel_count) {
-            let samples = track_handle.get_sample_vec();
-            for (channel, sample) in frame.iter_mut().enumerate() {
-                let value: T = T::from_sample(samples[channel] * VOLUME);
-                *sample = value;
+            let Ok(samples) = track_handle.get_sample_buffer() else {
+                panic!("coulnd't fetch sample buffer");
+            };
+            if samples.len() == track_handle.channel_count {
+                for (channel, sample) in frame.iter_mut().enumerate() {
+                    let value: T = T::from_sample(samples[channel] * VOLUME);
+                    *sample = value;
+                }
             }
-            track_handle.time += 1;
+            track_handle.increment_time();
         }
     }
 }

@@ -1,83 +1,147 @@
 use std::{
+    collections::VecDeque,
     fs::File,
     path::Path,
     sync::{Arc, Mutex},
 };
 
-use rubato::{
-    Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
-};
 use symphonia::core::{
-    audio::SampleBuffer, codecs::DecoderOptions, formats::FormatOptions, io::MediaSourceStream,
-    meta::MetadataOptions, probe::Hint,
+    audio::SampleBuffer,
+    codecs::{Decoder, DecoderOptions},
+    formats::{FormatOptions, FormatReader, SeekMode},
+    io::MediaSourceStream,
+    meta::MetadataOptions,
+    probe::Hint,
+    units::{Time, TimeBase},
 };
+
+const MINIMUM_FRAMES_IN_BUFFER_COUNT: usize = 1028;
 
 pub struct Track {
     path: String,
 }
 
-pub struct TrackData {
-    pub samples: Vec<Vec<f64>>,
+pub struct TrackHandle {
     pub channel_count: usize,
     pub sample_rate: u32,
-    pub time: usize,
+    time: u64,
+    samples: Vec<VecDeque<f64>>,
+    reader: Box<dyn FormatReader>,
+    decoder: Box<dyn Decoder>,
+    time_base: TimeBase,
+    frames_count: u64,
+    track_id: u32,
 }
 
-impl TrackData {
-    pub fn new(samples: Vec<Vec<f64>>, channel_count: usize, sample_rate: u32) -> Self {
-        Self {
-            samples,
+impl TrackHandle {
+    pub fn new(
+        reader: Box<dyn FormatReader>,
+        decoder: Box<dyn Decoder>,
+        track_id: u32,
+        sample_rate: u32,
+        channel_count: usize,
+        time_base: TimeBase,
+        frames_count: u64,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
             channel_count,
             sample_rate,
+            reader,
+            decoder,
+            time_base,
+            frames_count,
+            track_id,
             time: 0,
+            samples: vec![VecDeque::new(); channel_count],
+        })
+    }
+
+    pub fn get_sample_buffer(&mut self) -> anyhow::Result<Vec<f64>> {
+        if self.needs_to_fetch_more_samples() {
+            self.fetch_samples()?;
         }
-    }
-
-    pub fn get_sample_vec(&self) -> Vec<f64> {
-        self.samples
-            .iter()
-            .map(|sample_channel| sample_channel.get(self.time).cloned().unwrap_or(0f64))
-            .collect()
-    }
-
-    pub fn skip_to(&mut self, seconds: usize) {
-        self.time = seconds * (self.sample_rate as usize);
-    }
-
-    pub fn resample(&mut self, sample_rate: u32) -> anyhow::Result<()> {
-        if self.sample_rate == sample_rate {
-            return Ok(());
+        let mut buf = Vec::new();
+        for channel_buffer in self.samples.iter_mut() {
+            if let Some(sample) = channel_buffer.pop_front() {
+                buf.push(sample);
+            }
         }
-        let params = SincInterpolationParameters {
-            sinc_len: 256,
-            f_cutoff: 0.95,
-            interpolation: SincInterpolationType::Linear,
-            oversampling_factor: 256,
-            window: WindowFunction::BlackmanHarris2,
-        };
-        let mut resampler = SincFixedIn::<f64>::new(
-            sample_rate as f64 / self.sample_rate as f64,
-            2.0,
-            params,
-            self.samples.len(),
-            1,
+        Ok(buf)
+    }
+
+    pub fn seek(&mut self, seconds: u64) -> anyhow::Result<()> {
+        let mut time = self.get_duration();
+        time.seconds = seconds;
+        self.reader.seek(
+            SeekMode::Accurate,
+            symphonia::core::formats::SeekTo::Time {
+                time,
+                track_id: None,
+            },
         )?;
+        Ok(())
+    }
 
-        let out = resampler.process(&self.samples, None)?;
-        self.samples = out;
+    pub fn is_over(&self) -> bool {
+        self.time >= self.frames_count
+    }
 
+    pub fn increment_time(&mut self) {
+        self.time += 1;
+    }
+
+    pub fn get_time(&self) -> u64 {
+        self.time
+    }
+
+    pub fn get_duration(&self) -> Time {
+        self.time_base.calc_time(self.frames_count)
+    }
+
+    fn needs_to_fetch_more_samples(&self) -> bool {
+        self.samples[0].len() < MINIMUM_FRAMES_IN_BUFFER_COUNT && !self.is_over()
+    }
+
+    fn fetch_samples(&mut self) -> anyhow::Result<()> {
+        while let Ok(packet) = self.reader.next_packet() {
+            if packet.track_id() != self.track_id {
+                continue;
+            }
+
+            match self.decoder.decode(&packet) {
+                Ok(audio_buf) => {
+                    let spec = *audio_buf.spec();
+                    let duration = audio_buf.capacity() as u64;
+                    let mut sample_buf = SampleBuffer::<f64>::new(duration, spec);
+
+                    sample_buf.copy_interleaved_ref(audio_buf);
+
+                    for channel_idx in 0..self.channel_count {
+                        let mut channel_buf: VecDeque<f64> = sample_buf
+                            .samples()
+                            .chunks(self.channel_count)
+                            .map(|chunk| chunk.get(channel_idx).unwrap_or(&0f64))
+                            .copied()
+                            .collect();
+
+                        self.samples[channel_idx].append(&mut channel_buf);
+                    }
+                    break;
+                }
+                Err(symphonia::core::errors::Error::DecodeError(_)) => (),
+                Err(_) => break,
+            }
+        }
         Ok(())
     }
 }
-
-pub type TrackDataHandle = Arc<Mutex<TrackData>>;
 
 impl Track {
     pub fn new(path: String) -> Self {
         Self { path }
     }
 
-    pub fn get_data(&self) -> anyhow::Result<TrackDataHandle> {
+    pub fn get_track_handle(&self) -> anyhow::Result<Arc<Mutex<TrackHandle>>> {
         let file = Box::new(File::open(Path::new(&self.path)).unwrap());
 
         let mss = MediaSourceStream::new(file, Default::default());
@@ -88,83 +152,38 @@ impl Track {
         let metadata_opts: MetadataOptions = Default::default();
         let decoder_opts: DecoderOptions = Default::default();
 
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &metadata_opts)
-            .unwrap();
+        let mut probed =
+            symphonia::default::get_probe().format(&hint, mss, &format_opts, &metadata_opts)?;
 
-        let mut format = probed.format;
+        if let Some(metadata_revision) = probed.format.metadata().current() {
+            println!("{:?}", metadata_revision.tags());
+        } else {
+            println!("no tags =(");
+        }
+
+        let format = probed.format;
 
         let track = format.default_track().unwrap();
 
-        let mut decoder =
-            symphonia::default::get_codecs().make(&track.codec_params, &decoder_opts)?;
+        let decoder = symphonia::default::get_codecs().make(&track.codec_params, &decoder_opts)?;
 
         let track_id = track.id;
 
-        let mut sample_buf = None;
         let channels = track.codec_params.channels.unwrap();
         let sample_rate = track.codec_params.sample_rate.unwrap();
+        let time_base = track.codec_params.time_base.unwrap();
+        let frames_count = track.codec_params.n_frames.unwrap();
 
-        let mut buffer = vec![vec![]; channels.count()];
-
-        loop {
-            let Ok(packet) = format.next_packet() else {
-                break;
-            };
-
-            // If the packet does not belong to the selected track, skip it.
-            if packet.track_id() != track_id {
-                continue;
-            }
-
-            // Decode the packet into audio samples, ignoring any decode errors.
-            match decoder.decode(&packet) {
-                Ok(audio_buf) => {
-                    // The decoded audio samples may now be accessed via the audio buffer if per-channel
-                    // slices of samples in their native decoded format is desired. Use-cases where
-                    // the samples need to be accessed in an interleaved order or converted into
-                    // another sample format, or a byte buffer is required, are covered by copying the
-                    // audio buffer into a sample buffer or raw sample buffer, respectively. In the
-                    // example below, we will copy the audio buffer into a sample buffer in an
-                    // interleaved order while also converting to a f32 sample format.
-
-                    // If this is the *first* decoded packet, create a sample buffer matching the
-                    // decoded audio buffer format.
-                    if sample_buf.is_none() {
-                        // Get the audio buffer specification.
-                        let spec = *audio_buf.spec();
-
-                        // Get the capacity of the decoded buffer. Note: This is capacity, not length!
-                        let duration = audio_buf.capacity() as u64;
-
-                        // Create the f32 sample buffer.
-                        sample_buf = Some(SampleBuffer::<f32>::new(duration, spec));
-                    }
-
-                    // Copy the decoded audio buffer into the sample buffer in an interleaved format.
-                    if let Some(buf) = &mut sample_buf {
-                        buf.copy_interleaved_ref(audio_buf);
-                        for (idx, _channel) in channels.iter().enumerate() {
-                            let channel_buf: Vec<f64> = buf
-                                .samples()
-                                .chunks(channels.count())
-                                .map(|chunk| chunk.get(idx).unwrap_or(&0f32))
-                                .copied()
-                                .map(|x| x as f64)
-                                .collect();
-
-                            buffer[idx].extend_from_slice(&channel_buf);
-                        }
-                    }
-                }
-                Err(symphonia::core::errors::Error::DecodeError(_)) => (),
-                Err(_) => break,
-            }
-        }
-        Ok(Arc::new(Mutex::new(TrackData::new(
-            buffer,
-            channels.count(),
+        let track_data = TrackHandle::new(
+            format,
+            decoder,
+            track_id,
             sample_rate,
-        ))))
+            channels.count(),
+            time_base,
+            frames_count,
+        )?;
+
+        Ok(Arc::new(Mutex::new(track_data)))
     }
 }
