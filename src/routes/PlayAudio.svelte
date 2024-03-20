@@ -7,11 +7,22 @@
 			errorMessage = err;
 		});
 	};
-</script> 
+	const pause = () => {
+		invoke('pause', { path: '/home/hammsvietro/test.flac' }).catch((err) => {
+			errorMessage = err;
+		});
+	};
+	const resume = () => {
+		invoke('resume', { path: '/home/hammsvietro/test.flac' }).catch((err) => {
+			errorMessage = err;
+		});
+	};
+</script>
 
-<div class="counter">
-	<button on:click={playAudio}>Play audio</button>
-</div>
+<button on:click={playAudio}>Play audio</button>
+<button on:click={pause}>Pause</button>
+<button on:click={resume}>Resume</button>
+
 {#if errorMessage != null}
 	<div style="color: red">{errorMessage}</div>
 {/if}

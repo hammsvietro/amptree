@@ -23,9 +23,7 @@
 		to your new<br />SvelteKit app
 	</h1>
 
-	<h2>
-		Select your Fucking Song.
-	</h2>
+	<h2>Select your song.</h2>
 
 	<div class="songs">
 		<ul>
@@ -33,7 +31,7 @@
 				<li>
 					<div class="song-id">{item.id}</div>
 					<div class="song-name">{item.name}</div>
-					<div class="song-length">{(item.length / 60).toFixed(2).replace('.',':')}</div>
+					<div class="song-length">{(item.length / 60).toFixed(2).replace('.', ':')}</div>
 				</li>
 			{/each}
 		</ul>
