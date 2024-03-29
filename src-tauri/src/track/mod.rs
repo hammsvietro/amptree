@@ -1,9 +1,6 @@
-use std::{
-    collections::VecDeque,
-    fs::File,
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{collections::VecDeque, fs::File, path::Path};
+
+use serde::Serialize;
 
 use symphonia::core::{
     audio::SampleBuffer,
@@ -19,6 +16,13 @@ const MINIMUM_FRAMES_IN_BUFFER_COUNT: usize = 1028;
 
 pub struct Track {
     path: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackStatus {
+    pub duration_seconds: usize,
+    pub played_time: usize,
 }
 
 pub struct TrackHandle {
@@ -69,9 +73,10 @@ impl TrackHandle {
         Ok(buf)
     }
 
-    pub fn seek(&mut self, seconds: u64) -> anyhow::Result<()> {
+    pub fn seek(&mut self, seconds: usize) -> anyhow::Result<()> {
         let mut time = self.get_duration();
-        time.seconds = seconds;
+        time.seconds = seconds as u64;
+        // TODO: update self.time here
         self.reader.seek(
             SeekMode::Accurate,
             symphonia::core::formats::SeekTo::Time {
@@ -90,11 +95,22 @@ impl TrackHandle {
         self.time += 1;
     }
 
-    pub fn get_time(&self) -> u64 {
-        self.time
+    pub fn get_status(&self) -> TrackStatus {
+        TrackStatus {
+            duration_seconds: self.get_duration().seconds as usize,
+            played_time: self.get_played_time().seconds as usize,
+        }
     }
 
-    pub fn get_duration(&self) -> Time {
+    pub fn get_percentage(&self) -> f64 {
+        self.time as f64 / self.frames_count as f64
+    }
+
+    fn get_played_time(&self) -> Time {
+        self.time_base.calc_time(self.time)
+    }
+
+    fn get_duration(&self) -> Time {
         self.time_base.calc_time(self.frames_count)
     }
 
@@ -141,7 +157,7 @@ impl Track {
         Self { path }
     }
 
-    pub fn get_track_handle(&self) -> anyhow::Result<Arc<Mutex<TrackHandle>>> {
+    pub fn get_track_handle(&self) -> anyhow::Result<TrackHandle> {
         let file = Box::new(File::open(Path::new(&self.path)).unwrap());
 
         let mss = MediaSourceStream::new(file, Default::default());
@@ -184,6 +200,6 @@ impl Track {
             frames_count,
         )?;
 
-        Ok(Arc::new(Mutex::new(track_data)))
+        Ok(track_data)
     }
 }

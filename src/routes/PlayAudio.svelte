@@ -17,11 +17,18 @@
 			errorMessage = err;
 		});
 	};
+
+	const jumpTo = (seconds: number) => {
+		invoke('seek', { seconds }).catch((err) => {
+			errorMessage = err;
+		});
+	};
 </script>
 
 <button on:click={playAudio}>Play audio</button>
 <button on:click={pause}>Pause</button>
 <button on:click={resume}>Resume</button>
+<button on:click={() => jumpTo(180)}>Jump to</button>
 
 {#if errorMessage != null}
 	<div style="color: red">{errorMessage}</div>
