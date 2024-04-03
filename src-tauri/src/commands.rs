@@ -39,6 +39,6 @@ pub async fn seek(seconds: usize, state: State<'_, PlayerController>) -> Result<
 
 async fn queue(path: String, state: State<'_, PlayerController>) -> anyhow::Result<()> {
     let track = Track::new(path.to_owned());
-    state.tx.send(PlayerCommand::Play(track))?;
+    state.tx.send(PlayerCommand::WipeQueueAndPlay(track))?;
     Ok(())
 }

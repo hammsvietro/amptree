@@ -11,7 +11,7 @@ pub(crate) mod track;
 fn main() {
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let _ = boot_player(rx);
+    let _ = boot_player(tx.clone(), rx);
 
     tauri::Builder::default()
         .manage(PlayerController { tx })

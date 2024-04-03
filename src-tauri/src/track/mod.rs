@@ -14,6 +14,7 @@ use symphonia::core::{
 
 const MINIMUM_FRAMES_IN_BUFFER_COUNT: usize = 1028;
 
+#[derive(Debug)]
 pub struct Track {
     path: String,
 }
@@ -87,7 +88,7 @@ impl TrackHandle {
         Ok(())
     }
 
-    pub fn is_over(&self) -> bool {
+    pub fn has_finished(&self) -> bool {
         self.time >= self.frames_count
     }
 
@@ -115,7 +116,7 @@ impl TrackHandle {
     }
 
     fn needs_to_fetch_more_samples(&self) -> bool {
-        self.samples[0].len() < MINIMUM_FRAMES_IN_BUFFER_COUNT && !self.is_over()
+        self.samples[0].len() < MINIMUM_FRAMES_IN_BUFFER_COUNT && !self.has_finished()
     }
 
     fn fetch_samples(&mut self) -> anyhow::Result<()> {
