@@ -7,12 +7,8 @@ use crate::audio::{get_device, stream_track};
 use crate::track::TrackHandle;
 use cpal::{traits::StreamTrait, Device, Stream};
 
-pub struct PlayerController {
-    pub tx: Sender<PlayerCommand>,
-}
-
 pub enum PlayerCommand {
-    WipeQueueAndPlay(Track),
+    PlayNow(Track),
     Resume,
     NextTrack,
     Pause,
@@ -22,13 +18,16 @@ pub enum PlayerCommand {
 pub fn boot_player(
     tx: Sender<PlayerCommand>,
     rx: Receiver<PlayerCommand>,
-) -> anyhow::Result<(Arc<Mutex<PlayerHandle>>, JoinHandle<anyhow::Result<()>>)> {
+) -> anyhow::Result<(PlayerController, JoinHandle<anyhow::Result<()>>)> {
     let device = get_device()?;
-    let player_handle = Arc::new(Mutex::new(PlayerHandle::new(device, tx)));
+    let player_handle = Arc::new(Mutex::new(PlayerHandle::new(device, tx.clone())));
     let player_handle_clone = player_handle.clone();
 
     Ok((
-        player_handle,
+        PlayerController {
+            player_handle,
+            player_command_tx: tx,
+        },
         std::thread::spawn(move || run_player(player_handle_clone, rx)),
     ))
 }
@@ -58,7 +57,7 @@ fn run_player(
     run_player_observer(player_handle.clone());
     while let Ok(command) = rx.recv() {
         match command {
-            PlayerCommand::WipeQueueAndPlay(track) => {
+            PlayerCommand::PlayNow(track) => {
                 println!("will play track {:?}", track);
                 if stream.is_some() {
                     stream = None;
@@ -119,6 +118,7 @@ pub struct PlayerHandle {
     player_tx: Sender<PlayerCommand>,
     current_track: Option<TrackHandle>,
     track_queue: Vec<Track>,
+    volume: f64,
 }
 
 impl PlayerHandle {
@@ -128,6 +128,7 @@ impl PlayerHandle {
             player_tx,
             current_track: None,
             track_queue: Vec::new(),
+            volume: 1.0,
         }
     }
 
@@ -155,11 +156,19 @@ impl PlayerHandle {
         Ok(self.player_tx.send(PlayerCommand::NextTrack)?)
     }
 
+    pub fn change_volume(&mut self, volume: f64) -> anyhow::Result<()> {
+        self.volume = volume;
+        if let Some(track_handle) = self.get_mut_track_handle() {
+            track_handle.update_volume(volume);
+        }
+        Ok(())
+    }
+
     pub fn next_track(&mut self) -> anyhow::Result<bool> {
         let next_track = self.track_queue.pop();
         match next_track {
             Some(track) => {
-                self.current_track = Some(track.get_track_handle()?);
+                self.current_track = Some(track.get_track_handle(self.volume)?);
                 Ok(true)
             }
             None => {
@@ -167,5 +176,56 @@ impl PlayerHandle {
                 Ok(false)
             }
         }
+    }
+}
+
+pub struct PlayerController {
+    player_handle: Arc<Mutex<PlayerHandle>>,
+    player_command_tx: Sender<PlayerCommand>,
+}
+
+impl PlayerController {
+    pub fn play_now(&self, path: String) -> anyhow::Result<()> {
+        let track = Track::new(path.to_owned());
+        self.player_command_tx
+            .send(PlayerCommand::PlayNow(track))
+            .expect("Could not play track");
+        Ok(())
+    }
+
+    pub fn pause(&self) -> anyhow::Result<()> {
+        self.player_command_tx
+            .send(PlayerCommand::Pause)
+            .expect("Could not pause track");
+        Ok(())
+    }
+
+    pub fn resume(&self) -> anyhow::Result<()> {
+        self.player_command_tx
+            .send(PlayerCommand::Resume)
+            .expect("Could not pause track");
+        Ok(())
+    }
+
+    pub fn seek(&self, seconds: usize) -> anyhow::Result<()> {
+        self.player_command_tx
+            .send(PlayerCommand::Seek(seconds))
+            .expect(&format!("Could not skip to {seconds} seconds"));
+        Ok(())
+    }
+
+    pub fn change_volume(&self, volume: f64) -> anyhow::Result<()> {
+        let Ok(mut player_handle) = self.player_handle.lock() else {
+            anyhow::bail!("Could not change volume")
+        };
+        player_handle.change_volume(volume)?;
+        Ok(())
+    }
+
+    pub fn get_volume(&self) -> anyhow::Result<f64> {
+        let Ok(player_handle) = self.player_handle.lock() else {
+            anyhow::bail!("Could not get volume")
+        };
+        Ok(player_handle.volume)
     }
 }

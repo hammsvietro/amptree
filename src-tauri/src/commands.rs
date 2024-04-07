@@ -1,44 +1,37 @@
-use crate::player::PlayerCommand;
-use crate::track::Track;
-use crate::PlayerController;
 use tauri::State;
+
+use crate::PlayerController;
 
 #[tauri::command]
 pub async fn play_audio(path: String, state: State<'_, PlayerController>) -> Result<(), String> {
-    if let Err(error) = queue(path, state).await {
-        return Err(error.to_string());
-    }
-    Ok(())
+    let result = state.play_now(path);
+    convert_anyhow_result(result)
 }
 
 #[tauri::command]
 pub async fn pause(state: State<'_, PlayerController>) -> Result<(), String> {
-    state
-        .tx
-        .send(PlayerCommand::Pause)
-        .expect("Could not pause track");
-    Ok(())
+    let result = state.pause();
+    convert_anyhow_result(result)
 }
 
 #[tauri::command]
 pub async fn resume(state: State<'_, PlayerController>) -> Result<(), String> {
-    state
-        .tx
-        .send(PlayerCommand::Resume)
-        .expect("Could not pause track");
-    Ok(())
+    let result = state.resume();
+    convert_anyhow_result(result)
 }
 
 #[tauri::command]
 pub async fn seek(seconds: usize, state: State<'_, PlayerController>) -> Result<(), String> {
-    if state.tx.send(PlayerCommand::Seek(seconds)).is_err() {
-        return Err(format!("Could not skip to {seconds} seconds"));
-    }
-    Ok(())
+    let result = state.seek(seconds);
+    convert_anyhow_result(result)
 }
 
-async fn queue(path: String, state: State<'_, PlayerController>) -> anyhow::Result<()> {
-    let track = Track::new(path.to_owned());
-    state.tx.send(PlayerCommand::WipeQueueAndPlay(track))?;
-    Ok(())
+#[tauri::command]
+pub async fn change_volume(volume: f64, state: State<'_, PlayerController>) -> Result<(), String> {
+    let result = state.change_volume(volume);
+    convert_anyhow_result(result)
+}
+
+fn convert_anyhow_result(result: anyhow::Result<()>) -> Result<(), String> {
+    result.map_err(|e| e.to_string())
 }

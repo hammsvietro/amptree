@@ -1,14 +1,13 @@
 use std::sync::{Arc, Mutex};
 
 use crate::player::PlayerHandle;
-use crate::track::TrackHandle;
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, FromSample, Sample, SampleRate, Stream, StreamConfig};
 
 const VOLUME: f64 = 0.06;
 
 pub fn stream_track(track_handle: &Arc<Mutex<PlayerHandle>>) -> anyhow::Result<Stream> {
-    let Ok(mut handle) = track_handle.lock() else {
+    let Ok(handle) = track_handle.lock() else {
         anyhow::bail!("Couldn't acquire handle lock")
     };
 

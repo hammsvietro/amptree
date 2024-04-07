@@ -29,6 +29,7 @@ pub struct TrackStatus {
 pub struct TrackHandle {
     pub channel_count: usize,
     pub sample_rate: u32,
+    volume: f64,
     time: u64,
     samples: Vec<VecDeque<f64>>,
     reader: Box<dyn FormatReader>,
@@ -42,6 +43,7 @@ impl TrackHandle {
     pub fn new(
         reader: Box<dyn FormatReader>,
         decoder: Box<dyn Decoder>,
+        volume: f64,
         track_id: u32,
         sample_rate: u32,
         channel_count: usize,
@@ -52,6 +54,7 @@ impl TrackHandle {
             channel_count,
             sample_rate,
             reader,
+            volume,
             decoder,
             time_base,
             frames_count,
@@ -68,16 +71,25 @@ impl TrackHandle {
         let mut buf = Vec::new();
         for channel_buffer in self.samples.iter_mut() {
             if let Some(sample) = channel_buffer.pop_front() {
-                buf.push(sample);
+                buf.push(sample * (self.volume));
             }
         }
         Ok(buf)
+    }
+
+    pub fn update_volume(&mut self, volume: f64) {
+        self.volume = volume;
+    }
+
+    pub fn get_volume(&self) -> f64 {
+        self.volume
     }
 
     pub fn seek(&mut self, seconds: usize) -> anyhow::Result<()> {
         let mut time = self.get_duration();
         time.seconds = seconds as u64;
         // TODO: update self.time here
+        self.time = self.time_base.calc_timestamp(time.clone());
         self.reader.seek(
             SeekMode::Accurate,
             symphonia::core::formats::SeekTo::Time {
@@ -158,7 +170,7 @@ impl Track {
         Self { path }
     }
 
-    pub fn get_track_handle(&self) -> anyhow::Result<TrackHandle> {
+    pub fn get_track_handle(&self, volume: f64) -> anyhow::Result<TrackHandle> {
         let file = Box::new(File::open(Path::new(&self.path)).unwrap());
 
         let mss = MediaSourceStream::new(file, Default::default());
@@ -194,6 +206,7 @@ impl Track {
         let track_data = TrackHandle::new(
             format,
             decoder,
+            volume,
             track_id,
             sample_rate,
             channels.count(),

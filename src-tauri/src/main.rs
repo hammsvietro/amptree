@@ -8,13 +8,13 @@ pub(crate) mod commands;
 pub(crate) mod player;
 pub(crate) mod track;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let _ = boot_player(tx.clone(), rx);
+    let (player_controller, _thread_handle) = boot_player(tx.clone(), rx)?;
 
     tauri::Builder::default()
-        .manage(PlayerController { tx })
+        .manage(player_controller)
         .invoke_handler(tauri::generate_handler![
             commands::play_audio,
             commands::pause,
@@ -23,4 +23,6 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    Ok(())
 }
