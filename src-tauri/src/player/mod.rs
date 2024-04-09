@@ -13,6 +13,7 @@ pub enum PlayerCommand {
     NextTrack,
     Pause,
     Seek(usize),
+    Shutdown,
 }
 
 pub fn boot_player(
@@ -77,6 +78,7 @@ fn run_player(
                     stream.pause()?;
                 }
             }
+            PlayerCommand::Shutdown => return Ok(()),
             PlayerCommand::Resume => {
                 if let Some(stream) = &stream {
                     stream.play()?;
