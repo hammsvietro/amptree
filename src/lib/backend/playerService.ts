@@ -14,9 +14,7 @@ export function subscribeToEventBus(callback: (event: any) => void) {
 
 export async function listenToServer() {
 	let tickCount = 0;
-	await listen('tick', (event) => {
-		console.log('tick event', event);
-		dispatchEvent({ tickCount });
-		tickCount++;
+	await listen('player:tick', (event) => {
+		dispatchEvent(event.payload);
 	});
 }

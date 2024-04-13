@@ -26,6 +26,15 @@ pub struct TrackStatus {
     pub played_time: usize,
 }
 
+#[derive(Debug, serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TickResult {
+    pub percentage: f64,
+    pub total_duration_secs: f64,
+    pub played_secs: f64,
+    pub volume: f64,
+}
+
 pub struct TrackHandle {
     pub channel_count: usize,
     pub sample_rate: u32,
@@ -85,10 +94,18 @@ impl TrackHandle {
         self.volume
     }
 
+    pub fn tick(&self) -> TickResult {
+        TickResult {
+            percentage: self.get_percentage(),
+            total_duration_secs: self.get_duration().seconds as f64,
+            played_secs: self.get_played_time().seconds as f64,
+            volume: self.volume,
+        }
+    }
+
     pub fn seek(&mut self, seconds: usize) -> anyhow::Result<()> {
         let mut time = self.get_duration();
         time.seconds = seconds as u64;
-        // TODO: update self.time here
         self.time = self.time_base.calc_timestamp(time.clone());
         self.reader.seek(
             SeekMode::Accurate,

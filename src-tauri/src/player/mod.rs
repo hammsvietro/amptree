@@ -6,6 +6,7 @@ use std::thread::JoinHandle;
 use crate::audio::{get_device, stream_track};
 use crate::track::TrackHandle;
 use cpal::{traits::StreamTrait, Device, Stream};
+use tauri::{AppHandle, Manager};
 
 pub enum PlayerCommand {
     PlayNow(Track),
@@ -13,49 +14,38 @@ pub enum PlayerCommand {
     NextTrack,
     Pause,
     Seek(usize),
-    Shutdown,
+    Tick,
 }
 
 pub fn boot_player(
     tx: Sender<PlayerCommand>,
     rx: Receiver<PlayerCommand>,
-) -> anyhow::Result<(PlayerController, JoinHandle<anyhow::Result<()>>)> {
+    app_handle: AppHandle,
+) -> anyhow::Result<PlayerController> {
     let device = get_device()?;
     let player_handle = Arc::new(Mutex::new(PlayerHandle::new(device, tx.clone())));
     let player_handle_clone = player_handle.clone();
-
-    Ok((
-        PlayerController {
-            player_handle,
-            player_command_tx: tx,
-        },
-        std::thread::spawn(move || run_player(player_handle_clone, rx)),
-    ))
+    std::thread::spawn(move || run_player(player_handle_clone, rx, app_handle));
+    run_tick_emitter(tx.clone());
+    Ok(PlayerController {
+        player_handle,
+        player_command_tx: tx,
+    })
 }
 
-fn run_player_observer(player_handle: Arc<Mutex<PlayerHandle>>) -> JoinHandle<anyhow::Result<()>> {
+fn run_tick_emitter(tx: Sender<PlayerCommand>) -> JoinHandle<anyhow::Result<()>> {
     std::thread::spawn(move || loop {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        let Ok(player_handle_guard) = player_handle.lock() else {
-            continue;
-        };
-        match player_handle_guard.get_track_handle() {
-            Some(track_handle) => {
-                let percentage = (100_f64 * track_handle.get_percentage()).floor();
-                println!("played: {percentage}%",);
-                println!("status: {:?}", track_handle.get_status());
-            }
-            None => {}
-        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        tx.send(PlayerCommand::Tick)?;
     })
 }
 
 fn run_player(
     player_handle: Arc<Mutex<PlayerHandle>>,
     rx: Receiver<PlayerCommand>,
+    app_handle: AppHandle,
 ) -> anyhow::Result<()> {
     let mut stream: Option<Stream> = None;
-    run_player_observer(player_handle.clone());
     while let Ok(command) = rx.recv() {
         match command {
             PlayerCommand::PlayNow(track) => {
@@ -78,7 +68,6 @@ fn run_player(
                     stream.pause()?;
                 }
             }
-            PlayerCommand::Shutdown => return Ok(()),
             PlayerCommand::Resume => {
                 if let Some(stream) = &stream {
                     stream.play()?;
@@ -95,6 +84,18 @@ fn run_player(
                 if let Ok(mut player_handle_guard) = player_handle.lock() {
                     player_handle_guard.next_track()?;
                     handle_play_command(&mut stream, &player_handle)?;
+                }
+            }
+            PlayerCommand::Tick => {
+                let Ok(player_handle_guard) = player_handle.lock() else {
+                    continue;
+                };
+                match player_handle_guard.get_track_handle() {
+                    Some(track_handle) => {
+                        let tick_result = track_handle.tick();
+                        app_handle.emit_all("player:tick", tick_result)?;
+                    }
+                    None => {}
                 }
             }
         };
@@ -222,12 +223,5 @@ impl PlayerController {
         };
         player_handle.change_volume(volume)?;
         Ok(())
-    }
-
-    pub fn get_volume(&self) -> anyhow::Result<f64> {
-        let Ok(player_handle) = self.player_handle.lock() else {
-            anyhow::bail!("Could not get volume")
-        };
-        Ok(player_handle.volume)
     }
 }

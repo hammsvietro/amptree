@@ -3,13 +3,12 @@
 	import { onDestroy } from 'svelte';
 
 	let progress = 0;
+	let current = 0;
+	let total = 0;
 	const unsubscribe = subscribeToEventBus((event) => {
-		// React to events
-		console.log('Component A received event:', event);
-		const tickCount = event?.tickCount;
-		if (tickCount && tickCount > 0 && tickCount <= 100) {
-			progress = event.tickCount;
-		}
+		progress = event?.percentage * 100;
+		current = event?.playedSecs;
+		total = event?.totalDurationSecs;
 	});
 
 	onDestroy(() => {
@@ -18,6 +17,7 @@
 	});
 </script>
 
+<p>{current}</p>
 <div
 	class="w-full bg-amptree-bg rounded-full h-2 active:h-3 focus:h-3 hover:h-3 mb-4 dark:bg-amptree-bg transition-all transition-[height]"
 >
@@ -26,3 +26,5 @@
 		style="width: {progress}%"
 	></div>
 </div>
+
+<p>{total}</p>
