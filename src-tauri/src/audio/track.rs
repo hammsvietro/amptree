@@ -1,7 +1,5 @@
 use std::{collections::VecDeque, fs::File, path::Path};
 
-use serde::Serialize;
-
 use symphonia::core::{
     audio::SampleBuffer,
     codecs::{Decoder, DecoderOptions},
@@ -28,39 +26,54 @@ pub struct TrackStatus {
     pub volume: f64,
 }
 
-pub struct TrackHandle {
+pub(super) struct TrackMetadata {
     pub channel_count: usize,
     pub sample_rate: u32,
-    volume: f64,
-    time: u64,
-    samples: Vec<VecDeque<f64>>,
-    reader: Box<dyn FormatReader>,
-    decoder: Box<dyn Decoder>,
     time_base: TimeBase,
     frames_count: u64,
     track_id: u32,
 }
 
-impl TrackHandle {
+impl TrackMetadata {
     pub fn new(
-        reader: Box<dyn FormatReader>,
-        decoder: Box<dyn Decoder>,
-        volume: f64,
-        track_id: u32,
-        sample_rate: u32,
         channel_count: usize,
+        sample_rate: u32,
         time_base: TimeBase,
         frames_count: u64,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
+        track_id: u32,
+    ) -> Self {
+        Self {
             channel_count,
             sample_rate,
-            reader,
-            volume,
-            decoder,
             time_base,
             frames_count,
             track_id,
+        }
+    }
+}
+
+pub struct TrackHandle {
+    pub(super) track_metadata: TrackMetadata,
+    volume: f64,
+    time: u64,
+    samples: Vec<VecDeque<f64>>,
+    reader: Box<dyn FormatReader>,
+    decoder: Box<dyn Decoder>,
+}
+
+impl TrackHandle {
+    pub(super) fn new(
+        reader: Box<dyn FormatReader>,
+        decoder: Box<dyn Decoder>,
+        track_metadata: TrackMetadata,
+        volume: f64,
+    ) -> anyhow::Result<Self> {
+        let channel_count = track_metadata.channel_count;
+        Ok(Self {
+            track_metadata,
+            reader,
+            volume,
+            decoder,
             time: 0,
             samples: vec![VecDeque::new(); channel_count],
         })
@@ -83,10 +96,6 @@ impl TrackHandle {
         self.volume = volume;
     }
 
-    pub fn get_volume(&self) -> f64 {
-        self.volume
-    }
-
     pub fn get_status(&self) -> TrackStatus {
         TrackStatus {
             percentage: self.get_percentage(),
@@ -99,7 +108,7 @@ impl TrackHandle {
     pub fn seek(&mut self, seconds: usize) -> anyhow::Result<()> {
         let mut time = self.get_duration();
         time.seconds = seconds as u64;
-        self.time = self.time_base.calc_timestamp(time.clone());
+        self.time = self.track_metadata.time_base.calc_timestamp(time);
         self.reader.seek(
             SeekMode::Accurate,
             symphonia::core::formats::SeekTo::Time {
@@ -111,7 +120,7 @@ impl TrackHandle {
     }
 
     pub fn has_finished(&self) -> bool {
-        self.time >= self.frames_count
+        self.time >= self.track_metadata.frames_count
     }
 
     pub fn increment_time(&mut self) {
@@ -119,15 +128,17 @@ impl TrackHandle {
     }
 
     pub fn get_percentage(&self) -> f64 {
-        self.time as f64 / self.frames_count as f64
+        self.time as f64 / self.track_metadata.frames_count as f64
     }
 
     fn get_played_time(&self) -> Time {
-        self.time_base.calc_time(self.time)
+        self.track_metadata.time_base.calc_time(self.time)
     }
 
     fn get_duration(&self) -> Time {
-        self.time_base.calc_time(self.frames_count)
+        self.track_metadata
+            .time_base
+            .calc_time(self.track_metadata.frames_count)
     }
 
     fn needs_to_fetch_more_samples(&self) -> bool {
@@ -136,7 +147,7 @@ impl TrackHandle {
 
     fn fetch_samples(&mut self) -> anyhow::Result<()> {
         while let Ok(packet) = self.reader.next_packet() {
-            if packet.track_id() != self.track_id {
+            if packet.track_id() != self.track_metadata.track_id {
                 continue;
             }
 
@@ -148,10 +159,10 @@ impl TrackHandle {
 
                     sample_buf.copy_interleaved_ref(audio_buf);
 
-                    for channel_idx in 0..self.channel_count {
+                    for channel_idx in 0..self.track_metadata.channel_count {
                         let mut channel_buf: VecDeque<f64> = sample_buf
                             .samples()
-                            .chunks(self.channel_count)
+                            .chunks(self.track_metadata.channel_count)
                             .map(|chunk| chunk.get(channel_idx).unwrap_or(&0f64))
                             .copied()
                             .collect();
@@ -206,16 +217,14 @@ impl Track {
         let time_base = track.codec_params.time_base.unwrap();
         let frames_count = track.codec_params.n_frames.unwrap();
 
-        let track_data = TrackHandle::new(
-            format,
-            decoder,
-            volume,
-            track_id,
-            sample_rate,
+        let track_information = TrackMetadata::new(
             channels.count(),
+            sample_rate,
             time_base,
             frames_count,
-        )?;
+            track_id,
+        );
+        let track_data = TrackHandle::new(format, decoder, track_information, volume)?;
 
         Ok(track_data)
     }

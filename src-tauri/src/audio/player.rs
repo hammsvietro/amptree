@@ -1,13 +1,11 @@
 use crate::event::EventEmitter;
-use crate::track::Track;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+use crate::audio::track::{Track, TrackHandle};
 use crate::audio::{get_device, stream_track};
-use crate::track::TrackHandle;
 use cpal::{traits::StreamTrait, Device, Stream};
-use tauri::{AppHandle, Manager};
 
 pub enum PlayerCommand {
     PlayNow(Track),
@@ -92,13 +90,9 @@ where
                 if !player_handle_guard.is_playing {
                     continue;
                 }
-                match player_handle_guard.get_track_handle() {
-                    Some(track_handle) => {
-                        println!("emitting tick!");
-                        let track_status = track_handle.get_status();
-                        app_handle.emit_event("player:tick", track_status)?;
-                    }
-                    None => {}
+                if let Some(track_handle) = player_handle_guard.get_track_handle() {
+                    let track_status = track_handle.get_status();
+                    app_handle.emit_event("player:tick", track_status)?;
                 }
             }
         };
@@ -194,11 +188,13 @@ impl PlayerHandle {
     }
 
     pub fn clear_queue(&mut self) -> anyhow::Result<()> {
-        Ok(self.track_queue.clear())
+        self.track_queue.clear();
+        Ok(())
     }
 
     pub fn enqueue_track(&mut self, track: Track) -> anyhow::Result<()> {
-        Ok(self.track_queue.push(track))
+        self.track_queue.push(track);
+        Ok(())
     }
 
     pub fn trigger_next_track(&self) -> anyhow::Result<()> {
@@ -259,7 +255,7 @@ impl PlayerController {
     pub fn seek(&self, seconds: usize) -> anyhow::Result<()> {
         self.player_command_tx
             .send(PlayerCommand::Seek(seconds))
-            .expect(&format!("Could not skip to {seconds} seconds"));
+            .unwrap_or_else(|_| panic!("Could not skip to {seconds} seconds"));
         Ok(())
     }
 

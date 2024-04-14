@@ -1,8 +1,13 @@
-use std::sync::{Arc, Mutex};
-
-use crate::player::PlayerHandle;
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, FromSample, Sample, SampleRate, Stream, StreamConfig};
+use std::sync::{Arc, Mutex};
+
+mod player;
+mod track;
+
+pub use player::{boot_player, PlayerController};
+
+use player::PlayerHandle;
 
 pub fn stream_track(player_handle: &Arc<Mutex<PlayerHandle>>) -> anyhow::Result<Stream> {
     let Ok(handle) = player_handle.lock() else {
@@ -33,14 +38,14 @@ pub fn get_config(player_handle: &PlayerHandle) -> anyhow::Result<(&Device, Stre
         anyhow::bail!("No track to play.");
     };
     let device = player_handle.get_device();
-    let channel_count = track_data.channel_count as u16;
+    let channel_count = track_data.track_metadata.channel_count as u16;
     let supported_configs = device.supported_output_configs()?;
     for supported_config in supported_configs {
         if channel_count == supported_config.channels() {
             return Ok((
                 device,
                 supported_config
-                    .with_sample_rate(SampleRate(track_data.sample_rate))
+                    .with_sample_rate(SampleRate(track_data.track_metadata.sample_rate))
                     .into(),
             ));
         }
@@ -57,28 +62,24 @@ where
     };
 
     let track_handle = player_handle_guard.get_mut_track_handle();
-
-    match track_handle {
-        Some(track_handle) => {
-            if track_handle.has_finished() {
-                player_handle_guard
-                    .trigger_next_track()
-                    .expect("Couldn't trigger next track");
-                return;
-            }
-            for frame in output.chunks_mut(track_handle.channel_count) {
-                let Ok(samples) = track_handle.get_sample_buffer() else {
-                    panic!("coulnd't fetch sample buffer");
-                };
-                if samples.len() == track_handle.channel_count {
-                    for (channel, sample) in frame.iter_mut().enumerate() {
-                        let value: T = T::from_sample(samples[channel]);
-                        *sample = value;
-                    }
-                }
-                track_handle.increment_time();
-            }
+    if let Some(track_handle) = track_handle {
+        if track_handle.has_finished() {
+            player_handle_guard
+                .trigger_next_track()
+                .expect("Couldn't trigger next track");
+            return;
         }
-        None => {}
+        for frame in output.chunks_mut(track_handle.track_metadata.channel_count) {
+            let Ok(samples) = track_handle.get_sample_buffer() else {
+                panic!("coulnd't fetch sample buffer");
+            };
+            if samples.len() == track_handle.track_metadata.channel_count {
+                for (channel, sample) in frame.iter_mut().enumerate() {
+                    let value: T = T::from_sample(samples[channel]);
+                    *sample = value;
+                }
+            }
+            track_handle.increment_time();
+        }
     }
 }

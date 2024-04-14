@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::PlayerController;
+use crate::audio::PlayerController;
 
 #[tauri::command]
 pub async fn play_audio(path: String, state: State<'_, PlayerController>) -> Result<(), String> {

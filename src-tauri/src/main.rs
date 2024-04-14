@@ -1,14 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use player::{boot_player, PlayerController};
+use audio::boot_player;
 use tauri::Manager;
 
 pub(crate) mod audio;
 pub(crate) mod commands;
 pub(crate) mod event;
-pub(crate) mod player;
-pub(crate) mod track;
 
 fn main() -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -24,7 +22,8 @@ fn main() -> anyhow::Result<()> {
             commands::play_audio,
             commands::pause,
             commands::resume,
-            commands::seek
+            commands::seek,
+            commands::change_volume,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
