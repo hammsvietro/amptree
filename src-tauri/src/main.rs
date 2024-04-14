@@ -6,6 +6,7 @@ use tauri::Manager;
 
 pub(crate) mod audio;
 pub(crate) mod commands;
+pub(crate) mod event;
 pub(crate) mod player;
 pub(crate) mod track;
 

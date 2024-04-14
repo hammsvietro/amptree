@@ -1,3 +1,4 @@
+use crate::event::EventEmitter;
 use crate::track::Track;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -17,11 +18,14 @@ pub enum PlayerCommand {
     Tick,
 }
 
-pub fn boot_player(
+pub fn boot_player<T>(
     tx: Sender<PlayerCommand>,
     rx: Receiver<PlayerCommand>,
-    app_handle: AppHandle,
-) -> anyhow::Result<PlayerController> {
+    app_handle: T,
+) -> anyhow::Result<PlayerController>
+where
+    T: EventEmitter + Send + Sync + 'static,
+{
     let device = get_device()?;
     let player_handle = Arc::new(Mutex::new(PlayerHandle::new(device, tx.clone())));
     let player_handle_clone = player_handle.clone();
@@ -40,11 +44,14 @@ fn run_tick_emitter(tx: Sender<PlayerCommand>) -> JoinHandle<anyhow::Result<()>>
     })
 }
 
-fn run_player(
+fn run_player<T>(
     player_handle: Arc<Mutex<PlayerHandle>>,
     rx: Receiver<PlayerCommand>,
-    app_handle: AppHandle,
-) -> anyhow::Result<()> {
+    app_handle: T,
+) -> anyhow::Result<()>
+where
+    T: EventEmitter,
+{
     let mut stream: Option<Stream> = None;
     while let Ok(command) = rx.recv() {
         match command {
@@ -89,7 +96,7 @@ fn run_player(
                     Some(track_handle) => {
                         println!("emitting tick!");
                         let track_status = track_handle.get_status();
-                        app_handle.emit_all("player:tick", track_status)?;
+                        app_handle.emit_event("player:tick", track_status)?;
                     }
                     None => {}
                 }
