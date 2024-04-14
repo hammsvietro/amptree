@@ -19,16 +19,9 @@ pub struct Track {
     path: String,
 }
 
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TrackStatus {
-    pub duration_seconds: usize,
-    pub played_time: usize,
-}
-
 #[derive(Debug, serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct TickResult {
+pub struct TrackStatus {
     pub percentage: f64,
     pub total_duration_secs: f64,
     pub played_secs: f64,
@@ -94,8 +87,8 @@ impl TrackHandle {
         self.volume
     }
 
-    pub fn tick(&self) -> TickResult {
-        TickResult {
+    pub fn get_status(&self) -> TrackStatus {
+        TrackStatus {
             percentage: self.get_percentage(),
             total_duration_secs: self.get_duration().seconds as f64,
             played_secs: self.get_played_time().seconds as f64,
@@ -123,13 +116,6 @@ impl TrackHandle {
 
     pub fn increment_time(&mut self) {
         self.time += 1;
-    }
-
-    pub fn get_status(&self) -> TrackStatus {
-        TrackStatus {
-            duration_seconds: self.get_duration().seconds as usize,
-            played_time: self.get_played_time().seconds as usize,
-        }
     }
 
     pub fn get_percentage(&self) -> f64 {

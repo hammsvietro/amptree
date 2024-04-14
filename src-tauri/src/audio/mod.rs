@@ -4,15 +4,13 @@ use crate::player::PlayerHandle;
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{Device, FromSample, Sample, SampleRate, Stream, StreamConfig};
 
-const VOLUME: f64 = 0.06;
-
-pub fn stream_track(track_handle: &Arc<Mutex<PlayerHandle>>) -> anyhow::Result<Stream> {
-    let Ok(handle) = track_handle.lock() else {
+pub fn stream_track(player_handle: &Arc<Mutex<PlayerHandle>>) -> anyhow::Result<Stream> {
+    let Ok(handle) = player_handle.lock() else {
         anyhow::bail!("Couldn't acquire handle lock")
     };
 
     let (device, config) = get_config(&handle)?;
-    let handle_clone = track_handle.clone();
+    let handle_clone = player_handle.clone();
     Ok(device.build_output_stream(
         &config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
@@ -40,7 +38,7 @@ pub fn get_config(player_handle: &PlayerHandle) -> anyhow::Result<(&Device, Stre
     for supported_config in supported_configs {
         if channel_count == supported_config.channels() {
             return Ok((
-                device.clone(),
+                device,
                 supported_config
                     .with_sample_rate(SampleRate(track_data.sample_rate))
                     .into(),
@@ -74,7 +72,7 @@ where
                 };
                 if samples.len() == track_handle.channel_count {
                     for (channel, sample) in frame.iter_mut().enumerate() {
-                        let value: T = T::from_sample(samples[channel] * VOLUME);
+                        let value: T = T::from_sample(samples[channel]);
                         *sample = value;
                     }
                 }

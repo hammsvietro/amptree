@@ -49,10 +49,6 @@ fn run_player(
     while let Ok(command) = rx.recv() {
         match command {
             PlayerCommand::PlayNow(track) => {
-                println!("will play track {:?}", track);
-                if stream.is_some() {
-                    stream = None;
-                }
                 {
                     let Ok(mut player_handle_guard) = player_handle.lock() else {
                         continue;
@@ -64,14 +60,10 @@ fn run_player(
                 handle_play_command(&mut stream, &player_handle)?;
             }
             PlayerCommand::Pause => {
-                if let Some(stream) = &stream {
-                    stream.pause()?;
-                }
+                pause(&mut stream, &player_handle)?;
             }
             PlayerCommand::Resume => {
-                if let Some(stream) = &stream {
-                    stream.play()?;
-                }
+                play(&mut stream, &player_handle)?;
             }
             PlayerCommand::Seek(seconds) => {
                 if let Ok(mut player_handle_guard) = player_handle.lock() {
@@ -90,15 +82,47 @@ fn run_player(
                 let Ok(player_handle_guard) = player_handle.lock() else {
                     continue;
                 };
+                if !player_handle_guard.is_playing {
+                    continue;
+                }
                 match player_handle_guard.get_track_handle() {
                     Some(track_handle) => {
-                        let tick_result = track_handle.tick();
-                        app_handle.emit_all("player:tick", tick_result)?;
+                        println!("emitting tick!");
+                        let track_status = track_handle.get_status();
+                        app_handle.emit_all("player:tick", track_status)?;
                     }
                     None => {}
                 }
             }
         };
+    }
+    Ok(())
+}
+
+fn play(
+    stream: &mut Option<Stream>,
+    player_handle: &Arc<Mutex<PlayerHandle>>,
+) -> anyhow::Result<()> {
+    let Ok(mut player_handle_guard) = player_handle.lock() else {
+        anyhow::bail!("Could not play track");
+    };
+    player_handle_guard.is_playing = true;
+    if let Some(stream) = stream {
+        stream.play()?;
+    }
+    Ok(())
+}
+
+fn pause(
+    stream: &mut Option<Stream>,
+    player_handle: &Arc<Mutex<PlayerHandle>>,
+) -> anyhow::Result<()> {
+    let Ok(mut player_handle_guard) = player_handle.lock() else {
+        anyhow::bail!("Could not pause track");
+    };
+    player_handle_guard.is_playing = false;
+    if let Some(stream) = stream {
+        stream.pause()?;
     }
     Ok(())
 }
@@ -110,9 +134,22 @@ fn handle_play_command(
     if stream.is_some() {
         *stream = None;
     }
-    let track_stream = stream_track(player_handle)?;
-    track_stream.play()?;
-    *stream = Some(track_stream);
+    let Ok(player_handle_guard) = player_handle.lock() else {
+        anyhow::bail!("Could not play track");
+    };
+    let has_track = player_handle_guard.current_track.is_some();
+    drop(player_handle_guard);
+
+    match has_track {
+        true => {
+            let track_stream = stream_track(player_handle)?;
+            *stream = Some(track_stream);
+            play(stream, player_handle)?;
+        }
+        false => {
+            pause(stream, player_handle)?;
+        }
+    }
     Ok(())
 }
 
@@ -122,6 +159,7 @@ pub struct PlayerHandle {
     current_track: Option<TrackHandle>,
     track_queue: Vec<Track>,
     volume: f64,
+    is_playing: bool,
 }
 
 impl PlayerHandle {
@@ -132,6 +170,7 @@ impl PlayerHandle {
             current_track: None,
             track_queue: Vec::new(),
             volume: 1.0,
+            is_playing: false,
         }
     }
 
