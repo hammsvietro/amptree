@@ -8,9 +8,10 @@ use crate::audio::{get_device, stream_track};
 use cpal::{traits::StreamTrait, Device, Stream};
 
 pub enum PlayerCommand {
+    Queue(Track),
     PlayNow(Track),
     Resume,
-    NextTrack,
+    Skip,
     Pause,
     Seek(usize),
     Tick,
@@ -64,6 +65,14 @@ where
                 };
                 handle_play_command(&mut stream, &player_handle)?;
             }
+            PlayerCommand::Queue(track) => {
+                {
+                    let Ok(mut player_handle_guard) = player_handle.lock() else {
+                        continue;
+                    };
+                    player_handle_guard.enqueue_track(track)?;
+                };
+            }
             PlayerCommand::Pause => {
                 pause(&mut stream, &player_handle)?;
             }
@@ -73,15 +82,19 @@ where
             PlayerCommand::Seek(seconds) => {
                 if let Ok(mut player_handle_guard) = player_handle.lock() {
                     if let Some(track_handle) = player_handle_guard.get_mut_track_handle() {
-                        track_handle.seek(seconds)?;
+                        if (seconds as u64) < track_handle.get_duration().seconds {
+                            track_handle.seek(seconds)?;
+                        } else {
+                            player_handle_guard.next_track()?;
+                        }
                     }
                 }
             }
-            PlayerCommand::NextTrack => {
+            PlayerCommand::Skip => {
                 if let Ok(mut player_handle_guard) = player_handle.lock() {
                     player_handle_guard.next_track()?;
-                    handle_play_command(&mut stream, &player_handle)?;
                 }
+                handle_play_command(&mut stream, &player_handle)?;
             }
             PlayerCommand::Tick => {
                 let Ok(player_handle_guard) = player_handle.lock() else {
@@ -198,7 +211,7 @@ impl PlayerHandle {
     }
 
     pub fn trigger_next_track(&self) -> anyhow::Result<()> {
-        Ok(self.player_tx.send(PlayerCommand::NextTrack)?)
+        Ok(self.player_tx.send(PlayerCommand::Skip)?)
     }
 
     pub fn change_volume(&mut self, volume: f64) -> anyhow::Result<()> {
@@ -238,6 +251,14 @@ impl PlayerController {
         Ok(())
     }
 
+    pub fn queue(&self, path: String) -> anyhow::Result<()> {
+        let track = Track::new(path.to_owned());
+        self.player_command_tx
+            .send(PlayerCommand::Queue(track))
+            .expect("Could not queue track");
+        Ok(())
+    }
+
     pub fn pause(&self) -> anyhow::Result<()> {
         self.player_command_tx
             .send(PlayerCommand::Pause)
@@ -249,6 +270,13 @@ impl PlayerController {
         self.player_command_tx
             .send(PlayerCommand::Resume)
             .expect("Could not pause track");
+        Ok(())
+    }
+
+    pub fn skip(&self) -> anyhow::Result<()> {
+        self.player_command_tx
+            .send(PlayerCommand::Skip)
+            .expect("Could not skip track");
         Ok(())
     }
 

@@ -14,3 +14,9 @@ export async function resume(): Promise<void> {
 export async function seek(seconds: number): Promise<void> {
 	return invoke('seek', { seconds });
 }
+export async function queue(path: string): Promise<void> {
+	return invoke('queue', { path });
+}
+export async function skip(): Promise<void> {
+	return invoke('skip');
+}

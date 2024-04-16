@@ -135,7 +135,7 @@ impl TrackHandle {
         self.track_metadata.time_base.calc_time(self.time)
     }
 
-    fn get_duration(&self) -> Time {
+    pub fn get_duration(&self) -> Time {
         self.track_metadata
             .time_base
             .calc_time(self.track_metadata.frames_count)

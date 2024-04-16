@@ -20,6 +20,8 @@ fn main() -> anyhow::Result<()> {
         })
         .invoke_handler(tauri::generate_handler![
             commands::play_audio,
+            commands::queue,
+            commands::skip,
             commands::pause,
             commands::resume,
             commands::seek,

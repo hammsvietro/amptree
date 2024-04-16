@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { invoke } from '@tauri-apps/api/tauri';
-	import { playAudio, pause, resume, seek } from '../lib/backend/commands';
+	import { playAudio, pause, resume, seek, queue, skip } from '../lib/backend/commands';
 	let errorMessage: String | null;
 
 	const doPlayAudio = () => {
-		playAudio('/home/hammsvietro/test.flac').catch((err: string) => {
+		playAudio('/Users/pedrovietro/test.flac').catch((err: string) => {
 			errorMessage = err;
 		});
 	};
@@ -24,12 +24,24 @@
 			errorMessage = err;
 		});
 	};
+	const doQueue = () => {
+		queue('/Users/pedrovietro/test.flac').catch((err: string) => {
+			errorMessage = err;
+		});
+	};
+	const doSkip = () => {
+		skip().catch((err: string) => {
+			errorMessage = err;
+		});
+	};
 </script>
 
 <button on:click={doPlayAudio}>Play audio</button>
 <button on:click={doPause}>Pause</button>
 <button on:click={doResume}>Resume</button>
-<button on:click={() => doSeek(180)}>Jump to</button>
+<button on:click={() => doSeek(102)}>Jump to</button>
+<button on:click={doQueue}>Queue</button>
+<button on:click={doSkip}>Skip</button>
 
 {#if errorMessage != null}
 	<div style="color: red">{errorMessage}</div>
