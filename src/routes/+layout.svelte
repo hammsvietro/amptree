@@ -1,5 +1,5 @@
 <script>
-	import '../app.css';
+	import '../app.pcss';
 	import PlayerBar from '../lib/components/player/PlayerBar.svelte';
 	import { listenToServer } from '../lib/backend/playerService';
 	import { onMount } from 'svelte';
@@ -11,10 +11,10 @@
 </script>
 
 <main
-	class="min-h-screen bg-amptree-bg text-amptree-text antialiased leading-tight flex flex-col justify-between"
+	class="flex min-h-screen flex-col justify-between bg-amptree-bg leading-tight text-amptree-text antialiased"
 >
 	<div class="grow">
 		<slot />
 	</div>
-	<PlayerBar />
+	<PlayerBar></PlayerBar>
 </main>
