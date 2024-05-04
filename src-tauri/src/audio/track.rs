@@ -185,7 +185,7 @@ impl Track {
     }
 
     pub fn get_track_handle(&self, volume: f64) -> anyhow::Result<TrackHandle> {
-        let file = Box::new(File::open(Path::new(&self.path)).unwrap());
+        let file = Box::new(File::open(Path::new(&self.path))?);
 
         let mss = MediaSourceStream::new(file, Default::default());
 

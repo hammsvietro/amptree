@@ -4,7 +4,7 @@
 	let errorMessage: String | null;
 
 	const doPlayAudio = () => {
-		playAudio('/Users/pedrovietro/test.flac').catch((err: string) => {
+		playAudio('/home/hammsvietro/test.flac').catch((err: string) => {
 			errorMessage = err;
 		});
 	};
@@ -25,7 +25,7 @@
 		});
 	};
 	const doQueue = () => {
-		queue('/Users/pedrovietro/test.flac').catch((err: string) => {
+		queue('/home/hammsvietro/test.flac').catch((err: string) => {
 			errorMessage = err;
 		});
 	};

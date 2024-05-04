@@ -1,30 +1,61 @@
-<script>
-	import { subscribeToEventBus } from '$lib/backend/playerService';
-	import { onDestroy } from 'svelte';
+<script lang="ts">
+	import { createEventDispatcher, onMount } from 'svelte';
 
 	let progress = 0;
-	let current = 0;
-	let total = 0;
-	const unsubscribe = subscribeToEventBus((event) => {
-		progress = event?.percentage * 100;
-		current = event?.playedSecs;
-		total = event?.totalDurationSecs;
+	const dispatch = createEventDispatcher();
+
+	const accentColor = '#4db8ff';
+	const bgColor = '#2d2d2d';
+
+	let slider: HTMLInputElement | null = null;
+	let min = 0;
+	let max = 100;
+
+	onMount(() => {
+		updateSliderBar();
 	});
 
-	onDestroy(() => {
-		console.log('unsubbing');
-		unsubscribe();
-	});
+	export function setProgress(value: string | number) {
+		progress = parseFloat(value as string);
+		updateSliderBar();
+	}
+
+	const updateSliderBar = () => {
+		slider!.style.background = `
+			linear-gradient(
+				to right,
+				${accentColor} 0%,
+				${accentColor} ${((progress - min) / (max - min)) * 100}%,
+				${bgColor} ${((progress - min) / (max - min)) * 100}%,
+				${bgColor} 100%
+			)
+		`;
+	};
+
+	const handleInputChange = (event: Event) => {
+		const target = event.target as HTMLInputElement;
+		manualChange(parseFloat(target.value));
+	};
+
+	function manualChange(value: number) {
+		setProgress(value);
+		dispatch('change', value);
+	}
 </script>
 
-<p>{current}</p>
-<div
-	class="w-full bg-amptree-bg rounded-full h-2 active:h-3 focus:h-3 hover:h-3 mb-4 dark:bg-amptree-bg transition-all transition-[height]"
->
-	<div
-		class="bg-amptree-accent h-full rounded-full dark:amptree-accent transition-all transition-[width]"
-		style="width: {progress}%"
-	></div>
-</div>
+<div class="relative w-full">
+	<!-- Hidden range input -->
 
-<p>{total}</p>
+	<!-- Progress bar container -->
+	<div class="flex items-center justify-items-center h-3 border-none">
+		<input
+			type="range"
+			{min}
+			{max}
+			step="0.01"
+			bind:value={progress}
+			bind:this={slider}
+			on:input={handleInputChange}
+		/>
+	</div>
+</div>

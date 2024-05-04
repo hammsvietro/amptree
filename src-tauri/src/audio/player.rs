@@ -28,7 +28,12 @@ where
     let device = get_device()?;
     let player_handle = Arc::new(Mutex::new(PlayerHandle::new(device, tx.clone())));
     let player_handle_clone = player_handle.clone();
-    std::thread::spawn(move || run_player(player_handle_clone, rx, app_handle));
+    std::thread::spawn(move || {
+        let result = run_player(player_handle_clone, rx, app_handle);
+        if let Err(err) = result {
+            eprintln!("Error in player thread: {:?}", err);
+        }
+    });
     run_tick_emitter(tx.clone());
     Ok(PlayerController {
         player_handle,
@@ -183,7 +188,7 @@ impl PlayerHandle {
             player_tx,
             current_track: None,
             track_queue: Vec::new(),
-            volume: 1.0,
+            volume: 0.1,
             is_playing: false,
         }
     }
