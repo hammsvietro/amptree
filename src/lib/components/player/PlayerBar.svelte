@@ -21,6 +21,7 @@
 		if (progressBar == null) return;
 		progressBar.setProgress(progress);
 	});
+
 	onDestroy(() => {
 		console.log('unsubbing');
 		unsubscribe();
@@ -28,8 +29,8 @@
 
 	const handleSeek = (event: CustomEvent) => {
 		let percentage = event.detail;
-		let time = (percentage / 100) * total;
-		seek(parseInt(time));
+		let time = Math.round((percentage / 100) * total);
+		seek(time);
 	};
 </script>
 

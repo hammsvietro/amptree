@@ -3,43 +3,49 @@ use tauri::State;
 use crate::audio::PlayerController;
 
 #[tauri::command]
-pub async fn play_audio(path: String, state: State<'_, PlayerController>) -> Result<(), String> {
-    let result = state.play_now(path);
+pub async fn play_audio(
+    path: String,
+    controller: State<'_, PlayerController>,
+) -> Result<(), String> {
+    let result = controller.play_now(path);
     convert_anyhow_result(result)
 }
 
 #[tauri::command]
-pub async fn queue(path: String, state: State<'_, PlayerController>) -> Result<(), String> {
-    let result = state.queue(path);
+pub async fn queue(path: String, controller: State<'_, PlayerController>) -> Result<(), String> {
+    let result = controller.queue(path);
     convert_anyhow_result(result)
 }
 
 #[tauri::command]
-pub async fn skip(state: State<'_, PlayerController>) -> Result<(), String> {
-    let result = state.skip();
+pub async fn skip(controller: State<'_, PlayerController>) -> Result<(), String> {
+    let result = controller.skip();
     convert_anyhow_result(result)
 }
 
 #[tauri::command]
-pub async fn pause(state: State<'_, PlayerController>) -> Result<(), String> {
-    let result = state.pause();
+pub async fn pause(controller: State<'_, PlayerController>) -> Result<(), String> {
+    let result = controller.pause();
     convert_anyhow_result(result)
 }
 
 #[tauri::command]
-pub async fn resume(state: State<'_, PlayerController>) -> Result<(), String> {
-    let result = state.resume();
+pub async fn resume(controller: State<'_, PlayerController>) -> Result<(), String> {
+    let result = controller.resume();
     convert_anyhow_result(result)
 }
 #[tauri::command]
-pub async fn seek(seconds: usize, state: State<'_, PlayerController>) -> Result<(), String> {
-    let result = state.seek(seconds);
+pub async fn seek(seconds: usize, controller: State<'_, PlayerController>) -> Result<(), String> {
+    let result = controller.seek(seconds);
     convert_anyhow_result(result)
 }
 
 #[tauri::command]
-pub async fn change_volume(volume: f64, state: State<'_, PlayerController>) -> Result<(), String> {
-    let result = state.change_volume(volume);
+pub async fn change_volume(
+    volume: f64,
+    controller: State<'_, PlayerController>,
+) -> Result<(), String> {
+    let result = controller.change_volume(volume);
     convert_anyhow_result(result)
 }
 

@@ -7,6 +7,7 @@ use tauri::Manager;
 pub(crate) mod audio;
 pub(crate) mod commands;
 pub(crate) mod event;
+pub(crate) mod library;
 
 fn main() -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
