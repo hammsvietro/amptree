@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter};
 
 pub trait EventEmitter {
     fn emit_event<T>(&self, event: &str, data: T) -> anyhow::Result<()>
@@ -11,7 +11,7 @@ impl EventEmitter for AppHandle {
     where
         T: serde::Serialize + Clone,
     {
-        self.emit_all(event, data)?;
+        self.emit(event, data)?;
         Ok(())
     }
 }

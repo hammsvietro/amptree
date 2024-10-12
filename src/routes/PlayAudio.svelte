@@ -1,20 +1,20 @@
 <script lang="ts">
-	import { invoke } from '@tauri-apps/api/tauri';
+	import { invoke } from '@tauri-apps/api/core';
 	import { playAudio, pause, resume, seek, queue, skip } from '../lib/backend/commands';
 	let errorMessage: String | null;
 
 	const doPlayAudio = () => {
-		playAudio('/home/hammsvietro/test.flac').catch((err: string) => {
+		playAudio('/home/hammsvietro/test.mp3').catch((err: string) => {
 			errorMessage = err;
 		});
 	};
 	const doPause = () => {
-		invoke('pause', { path: '/home/hammsvietro/test.flac' }).catch((err: string) => {
+		invoke('pause', { path: '/home/hammsvietro/test.mp3' }).catch((err: string) => {
 			errorMessage = err;
 		});
 	};
 	const doResume = () => {
-		invoke('resume', { path: '/home/hammsvietro/test.flac' }).catch((err: string) => {
+		invoke('resume', { path: '/home/hammsvietro/test.mp3' }).catch((err: string) => {
 			errorMessage = err;
 		});
 	};
@@ -25,7 +25,7 @@
 		});
 	};
 	const doQueue = () => {
-		queue('/home/hammsvietro/test.flac').catch((err: string) => {
+		queue('/home/hammsvietro/test.mp3').catch((err: string) => {
 			errorMessage = err;
 		});
 	};

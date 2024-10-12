@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
     tauri::Builder::default()
         .setup(move |app| {
             let app_handle = app.handle();
-            let player_controller = boot_player(tx.clone(), rx, app_handle)?;
+            let player_controller = boot_player(tx.clone(), rx, app_handle.clone())?;
             app.manage(player_controller);
             Ok(())
         })
