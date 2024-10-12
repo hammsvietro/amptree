@@ -3,7 +3,7 @@ use cpal::{Device, FromSample, Sample, SampleRate, Stream, StreamConfig};
 use std::sync::{Arc, Mutex};
 
 mod player;
-mod track;
+pub mod track;
 
 pub use player::{boot_player, PlayerController};
 

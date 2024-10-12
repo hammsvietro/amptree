@@ -49,6 +49,13 @@ pub async fn change_volume(
     convert_anyhow_result(result)
 }
 
+#[tauri::command]
+pub async fn scan_folder(path: String, state: State<'_, PlayerController>) -> Result<(), String> {
+    // let result = state.scan_folder(path);
+    // convert_anyhow_result(result)
+    Ok(())
+}
+
 fn convert_anyhow_result(result: anyhow::Result<()>) -> Result<(), String> {
     result.map_err(|e| e.to_string())
 }

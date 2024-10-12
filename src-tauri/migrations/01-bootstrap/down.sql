@@ -1,0 +1,3 @@
+DROP TABLE Tracks;
+DROP TABLE Albums;
+DROP TABLE Artists;

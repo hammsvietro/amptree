@@ -2,16 +2,20 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use audio::boot_player;
+use database::get_connection;
 use tauri::Manager;
 
 pub(crate) mod audio;
 pub(crate) mod commands;
+pub(crate) mod database;
 pub(crate) mod event;
 pub(crate) mod library;
 
 fn main() -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
 
+    let db_connection = get_connection()?;
+    let library = library::Library::new(db_connection);
     tauri::Builder::default()
         .setup(move |app| {
             let app_handle = app.handle();
@@ -19,6 +23,7 @@ fn main() -> anyhow::Result<()> {
             app.manage(player_controller);
             Ok(())
         })
+        .manage(library)
         .invoke_handler(tauri::generate_handler![
             commands::play_audio,
             commands::queue,
