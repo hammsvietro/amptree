@@ -12,11 +12,6 @@ use symphonia::core::{
 
 const MINIMUM_FRAMES_IN_BUFFER_COUNT: usize = 1028;
 
-#[derive(Debug)]
-pub struct Track {
-    path: String,
-}
-
 #[derive(Debug, serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackStatus {

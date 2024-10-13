@@ -3,6 +3,7 @@
 
 use audio::boot_player;
 use database::get_connection;
+use library::Library;
 use tauri::Manager;
 
 pub(crate) mod audio;
@@ -15,7 +16,7 @@ fn main() -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
 
     let db_connection = get_connection()?;
-    let library = library::Library::new(db_connection);
+    let library = Library::new(db_connection);
     tauri::Builder::default()
         .setup(move |app| {
             let app_handle = app.handle();
