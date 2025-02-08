@@ -2,6 +2,8 @@ use std::hash::{Hash, Hasher};
 
 use rusqlite::Connection;
 
+use crate::audio::AudioFile;
+
 mod repository;
 pub mod scanner;
 
@@ -17,8 +19,19 @@ impl Library {
     }
 
     pub fn scan(&self, path: &str) {
-        scanner::scan_directory();
+        scanner::scan_directory(path);
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Artist {
+    name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Album {
+    name: String,
+    cover_path: String,
 }
 
 #[derive(Debug)]
@@ -28,13 +41,8 @@ pub struct Track {
     album_order: i32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Album {
-    name: String,
-    cover_path: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Artist {
-    name: String,
+impl Into<AudioFile> for &Track {
+    fn into(self) -> AudioFile {
+        AudioFile::new(self.path.clone())
+    }
 }

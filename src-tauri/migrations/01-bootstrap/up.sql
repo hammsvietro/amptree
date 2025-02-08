@@ -4,8 +4,6 @@ CREATE TABLE Artists (
     cover_path TEXT
 );
 
-INSERT INTO Artists (name) VALUES ('Unknown Artist');
-
 CREATE TABLE Albums (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -13,8 +11,6 @@ CREATE TABLE Albums (
     artist_id INTEGER NOT NULL,
     FOREIGN KEY (artist_id) REFERENCES Artists(id)
 );
-
-INSERT INTO Albums (name, artist_id) VALUES ('Unknown Album', 1);
 
 CREATE TABLE Tracks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -3,13 +3,16 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
-use crate::audio::track::{Track, TrackHandle};
-use crate::audio::{get_device, stream_track};
+use crate::audio::decoder::{AudioFile, AudioHandle};
+use crate::audio::get_device;
+use crate::audio::stream::stream_audio;
 use cpal::{traits::StreamTrait, Device, Stream};
 
+use super::decoder::AudioSource;
+
 pub enum PlayerCommand {
-    Queue(Track),
-    PlayNow(Track),
+    Queue(AudioFile),
+    PlayNow(AudioFile),
     Resume,
     Skip,
     Pause,
@@ -161,7 +164,7 @@ fn handle_play_command(
 
     match has_track {
         true => {
-            let track_stream = stream_track(player_handle)?;
+            let track_stream = stream_audio(player_handle)?;
             *stream = Some(track_stream);
             play(stream, player_handle)?;
         }
@@ -175,8 +178,8 @@ fn handle_play_command(
 pub struct PlayerHandle {
     device: Device,
     player_tx: Sender<PlayerCommand>,
-    current_track: Option<TrackHandle>,
-    track_queue: Vec<Track>,
+    current_track: Option<AudioHandle>,
+    audio_queue: Vec<AudioFile>,
     volume: f64,
     is_playing: bool,
 }
@@ -187,7 +190,7 @@ impl PlayerHandle {
             device,
             player_tx,
             current_track: None,
-            track_queue: Vec::new(),
+            audio_queue: Vec::new(),
             volume: 0.1,
             is_playing: false,
         }
@@ -197,21 +200,21 @@ impl PlayerHandle {
         &self.device
     }
 
-    pub fn get_track_handle(&self) -> Option<&TrackHandle> {
+    pub fn get_track_handle(&self) -> Option<&AudioHandle> {
         self.current_track.as_ref()
     }
 
-    pub fn get_mut_track_handle(&mut self) -> Option<&mut TrackHandle> {
+    pub fn get_mut_track_handle(&mut self) -> Option<&mut AudioHandle> {
         self.current_track.as_mut()
     }
 
     pub fn clear_queue(&mut self) -> anyhow::Result<()> {
-        self.track_queue.clear();
+        self.audio_queue.clear();
         Ok(())
     }
 
-    pub fn enqueue_track(&mut self, track: Track) -> anyhow::Result<()> {
-        self.track_queue.push(track);
+    pub fn enqueue_track(&mut self, track: AudioFile) -> anyhow::Result<()> {
+        self.audio_queue.push(track);
         Ok(())
     }
 
@@ -228,10 +231,10 @@ impl PlayerHandle {
     }
 
     pub fn next_track(&mut self) -> anyhow::Result<bool> {
-        let next_track = self.track_queue.pop();
-        match next_track {
+        let next_audio = self.audio_queue.pop();
+        match next_audio {
             Some(track) => {
-                self.current_track = Some(track.get_track_handle(self.volume)?);
+                self.current_track = Some(track.get_handle(self.volume)?);
                 Ok(true)
             }
             None => {
@@ -249,39 +252,39 @@ pub struct PlayerController {
 
 impl PlayerController {
     pub fn play_now(&self, path: String) -> anyhow::Result<()> {
-        let track = Track::new(path.to_owned());
+        let audio_file = AudioFile::new(path.to_owned());
         self.player_command_tx
-            .send(PlayerCommand::PlayNow(track))
-            .expect("Could not play track");
+            .send(PlayerCommand::PlayNow(audio_file))
+            .expect("Could not play audio");
         Ok(())
     }
 
     pub fn queue(&self, path: String) -> anyhow::Result<()> {
-        let track = Track::new(path.to_owned());
+        let audio_file = AudioFile::new(path.to_owned());
         self.player_command_tx
-            .send(PlayerCommand::Queue(track))
-            .expect("Could not queue track");
+            .send(PlayerCommand::Queue(audio_file))
+            .expect("Could not queue audio");
         Ok(())
     }
 
     pub fn pause(&self) -> anyhow::Result<()> {
         self.player_command_tx
             .send(PlayerCommand::Pause)
-            .expect("Could not pause track");
+            .expect("Could not pause audio");
         Ok(())
     }
 
     pub fn resume(&self) -> anyhow::Result<()> {
         self.player_command_tx
             .send(PlayerCommand::Resume)
-            .expect("Could not pause track");
+            .expect("Could not pause audio");
         Ok(())
     }
 
     pub fn skip(&self) -> anyhow::Result<()> {
         self.player_command_tx
             .send(PlayerCommand::Skip)
-            .expect("Could not skip track");
+            .expect("Could not skip audio");
         Ok(())
     }
 
