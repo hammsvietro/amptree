@@ -5,7 +5,7 @@ mod decoder;
 mod player;
 mod stream;
 
-pub use decoder::AudioFile;
+pub use decoder::{AudioFile, AudioMetadata, AudioSource};
 pub use player::{boot_player, PlayerController};
 
 pub fn get_device() -> anyhow::Result<Device> {

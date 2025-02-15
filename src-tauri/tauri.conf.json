@@ -43,7 +43,7 @@
   "productName": "amptree",
   "mainBinaryName": "amptree",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.amptree.app",
   "plugins": {},
   "app": {
     "windows": [

@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use std::{collections::HashMap, hash::Hash};
 
 use rusqlite::Connection;
 
@@ -6,6 +6,8 @@ use crate::audio::AudioFile;
 
 mod repository;
 pub mod scanner;
+
+pub(super) type ScanResult = anyhow::Result<HashMap<Artist, HashMap<Album, Vec<Track>>>>;
 
 pub struct Library {
     repository: repository::LibraryRepository,
@@ -18,8 +20,9 @@ impl Library {
         }
     }
 
-    pub fn scan(&self, path: &str) {
-        scanner::scan_directory(path);
+    pub async fn scan(&self, path: &str) -> anyhow::Result<()> {
+        let scanned = scanner::scan_directory(path).await?;
+        Ok(())
     }
 }
 

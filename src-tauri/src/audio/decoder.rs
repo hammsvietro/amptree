@@ -6,7 +6,7 @@ use symphonia::{
         codecs::{Decoder, DecoderOptions},
         formats::{FormatOptions, FormatReader, SeekMode},
         io::MediaSourceStream,
-        meta::{MetadataOptions, StandardTagKey},
+        meta::{MetadataOptions, StandardTagKey, Tag},
         probe::{Hint, Probe, ProbeResult},
         units::{Time, TimeBase},
     },
@@ -30,13 +30,31 @@ pub(super) struct AudioPlaybackStatus {
 }
 
 #[derive(Debug, serde::Serialize, Clone, Default)]
-pub(super) struct AudioMetadata {
+pub struct AudioMetadata {
     pub artist: Option<String>,
     pub title: Option<String>,
     pub album: Option<String>,
     pub year: Option<usize>,
     pub genre: Option<String>,
     pub track_number: Option<usize>,
+}
+
+impl AudioMetadata {
+    fn merge_tags(&mut self, tags: &[Tag]) {
+        for tag in tags {
+            match tag.std_key {
+                Some(StandardTagKey::Artist) => self.artist = Some(tag.value.to_string()),
+                Some(StandardTagKey::TrackTitle) => self.title = Some(tag.value.to_string()),
+                Some(StandardTagKey::Album) => self.album = Some(tag.value.to_string()),
+                Some(StandardTagKey::Date) => self.year = tag.value.to_string().parse().ok(),
+                Some(StandardTagKey::Genre) => self.genre = Some(tag.value.to_string()),
+                Some(StandardTagKey::TrackNumber) => {
+                    self.track_number = tag.value.to_string().parse().ok()
+                }
+                _ => (),
+            }
+        }
+    }
 }
 
 pub(super) struct AudioPlaybackMetadata {
@@ -192,7 +210,7 @@ impl AudioHandle {
     }
 }
 
-pub(super) trait AudioSource {
+pub trait AudioSource {
     /// Returns the metadata of the audio
     ///
     /// Use the `AudioHandle` to fetch samples, seek, playback status, etc...
@@ -206,48 +224,26 @@ impl AudioSource for AudioFile {
         let mut probe_result = self.probe()?;
         let mut metadata = AudioMetadata::default();
 
-        if let Some(mut metadata_revision) = probe_result.metadata.get() {
-            if let Some(metadata_revision) = metadata_revision.skip_to_latest() {
-                for tag in metadata_revision.tags() {
-                    match tag.std_key {
-                        Some(StandardTagKey::Artist) => {
-                            metadata.artist = Some(tag.value.to_string())
-                        }
-                        Some(StandardTagKey::TrackTitle) => {
-                            metadata.title = Some(tag.value.to_string())
-                        }
-                        Some(StandardTagKey::Album) => metadata.album = Some(tag.value.to_string()),
-                        Some(StandardTagKey::Date) => {
-                            metadata.year = tag.value.to_string().parse().ok()
-                        }
-                        Some(StandardTagKey::Genre) => metadata.genre = Some(tag.value.to_string()),
-                        Some(StandardTagKey::TrackNumber) => {
-                            metadata.track_number = tag.value.to_string().parse().ok()
-                        }
-                        _ => (),
-                    }
-                }
-            } else {
-                println!("no latest metadata revision =(");
+        if let Some(mut probed_metadata) = probe_result.metadata.get() {
+            while let Some(metadata_revision) = probed_metadata.pop() {
+                metadata.merge_tags(metadata_revision.tags());
             }
-        } else {
-            println!("no global metadata tags =(");
+
+            if let Some(metadata_revision) = probed_metadata.current() {
+                metadata.merge_tags(metadata_revision.tags());
+            }
         }
 
-        if let Some(metadata_revision) = probe_result.format.metadata().current() {
-            println!("{:?}", metadata_revision.tags());
-        } else {
-            println!("no format metadata tags =(");
+        let mut probed_metadata = probe_result.format.metadata();
+        while let Some(metadata_revision) = probed_metadata.pop() {
+            metadata.merge_tags(metadata_revision.tags());
         }
 
-        Ok(AudioMetadata {
-            artist: None,
-            title: None,
-            album: None,
-            year: None,
-            genre: None,
-            track_number: None,
-        })
+        if let Some(metadata_revision) = probed_metadata.current() {
+            metadata.merge_tags(metadata_revision.tags());
+        }
+
+        Ok(metadata)
     }
 
     fn get_handle(&self, volume: f64) -> anyhow::Result<AudioHandle> {

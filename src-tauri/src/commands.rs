@@ -1,13 +1,15 @@
 use tauri::State;
 
-use crate::audio::PlayerController;
+use crate::{audio::PlayerController, library::Library};
 
 #[tauri::command]
 pub async fn play_audio(
     path: String,
     controller: State<'_, PlayerController>,
+    library: State<'_, Library>,
 ) -> Result<(), String> {
     let result = controller.play_now(path);
+    let a = library.scan("/Users/pedrovietro/Downloads").await;
     convert_anyhow_result(result)
 }
 
