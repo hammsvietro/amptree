@@ -3,11 +3,11 @@ use std::{collections::VecDeque, fmt::Debug, fs::File, path::Path};
 use symphonia::{
     core::{
         audio::SampleBuffer,
-        codecs::{Decoder, DecoderOptions},
+        codecs::Decoder,
         formats::{FormatOptions, FormatReader, SeekMode},
         io::MediaSourceStream,
         meta::{MetadataOptions, StandardTagKey, Tag},
-        probe::{Hint, Probe, ProbeResult},
+        probe::{Hint, ProbeResult},
         units::{Time, TimeBase},
     },
     default::get_probe,
@@ -29,8 +29,9 @@ pub(super) struct AudioPlaybackStatus {
     pub volume: f64,
 }
 
-#[derive(Debug, serde::Serialize, Clone, Default)]
+#[derive(Debug, serde::Serialize, Clone)]
 pub struct AudioMetadata {
+    pub file_path: String,
     pub artist: Option<String>,
     pub title: Option<String>,
     pub album: Option<String>,
@@ -40,6 +41,18 @@ pub struct AudioMetadata {
 }
 
 impl AudioMetadata {
+    pub fn new(file_path: String) -> Self {
+        Self {
+            file_path,
+            artist: None,
+            title: None,
+            album: None,
+            year: None,
+            genre: None,
+            track_number: None,
+        }
+    }
+
     fn merge_tags(&mut self, tags: &[Tag]) {
         for tag in tags {
             match tag.std_key {
@@ -222,7 +235,7 @@ pub trait AudioSource {
 impl AudioSource for AudioFile {
     fn get_metadata(&self) -> anyhow::Result<AudioMetadata> {
         let mut probe_result = self.probe()?;
-        let mut metadata = AudioMetadata::default();
+        let mut metadata = AudioMetadata::new(self.path.clone());
 
         if let Some(mut probed_metadata) = probe_result.metadata.get() {
             while let Some(metadata_revision) = probed_metadata.pop() {

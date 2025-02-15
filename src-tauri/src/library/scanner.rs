@@ -7,19 +7,31 @@ use crate::audio::{AudioFile, AudioMetadata, AudioSource};
 use super::{Album, Artist, ScanResult, Track};
 
 pub async fn scan_directory(base_path: &str) -> ScanResult {
-    let mut result = HashMap::new();
+    let mut scan_result: HashMap<Artist, HashMap<Album, Vec<Track>>> = HashMap::new();
     let file_paths = get_file_paths(base_path).await?;
-    let audio_metadata_list: Vec<AudioMetadata> = Vec::new();
-    for file_path in file_paths {
-        if !is_audio_file(&file_path).await? {
-            continue;
-        }
-        println!("{file_path} is audio file!");
-        let audio_file = AudioFile::new(file_path);
-        let metadata = audio_file.get_metadata()?;
-        println!("{:?}", metadata);
+    let found_file_metadata = get_audio_metadata_for_paths(file_paths).await?;
+
+    for file_metadata in found_file_metadata {
+        let artist_name = file_metadata
+            .artist
+            .unwrap_or(String::from("Unknown Artist"));
+        let artist = Artist::new(artist_name);
+
+        let artist_albums: &mut HashMap<Album, Vec<Track>> = scan_result.entry(artist).or_default();
+
+        let album_name = file_metadata.album.unwrap_or(String::from("Unknown Album"));
+        let album = Album::new(album_name, None);
+
+        let album_tracks: &mut Vec<Track> = artist_albums.entry(album).or_default();
+
+        album_tracks.push(Track::new(
+            file_metadata.file_path.clone(),
+            file_metadata.title,
+            file_metadata.track_number,
+        ));
     }
-    Ok(result)
+
+    Ok(scan_result)
 }
 
 async fn get_file_paths(path: impl Into<PathBuf>) -> anyhow::Result<Vec<String>> {
@@ -56,4 +68,18 @@ async fn is_audio_file(path: &str) -> anyhow::Result<bool> {
         infer::get(&buf[..magic_number_bytes]),
         Some(kind) if kind.mime_type().starts_with("audio/")
     ))
+}
+
+async fn get_audio_metadata_for_paths(paths: Vec<String>) -> anyhow::Result<Vec<AudioMetadata>> {
+    let mut found_audio_metadata: Vec<AudioMetadata> = Vec::new();
+    for file_path in paths {
+        if !is_audio_file(&file_path).await? {
+            continue;
+        }
+        let audio_file = AudioFile::new(file_path);
+        if let Ok(current_audio_metadata) = audio_file.get_metadata() {
+            found_audio_metadata.push(current_audio_metadata)
+        }
+    }
+    Ok(found_audio_metadata)
 }

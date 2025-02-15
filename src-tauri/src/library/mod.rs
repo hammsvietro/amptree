@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, hash::Hash, path::Path};
 
 use rusqlite::Connection;
 
@@ -22,6 +22,7 @@ impl Library {
 
     pub async fn scan(&self, path: &str) -> anyhow::Result<()> {
         let scanned = scanner::scan_directory(path).await?;
+        println!("{scanned:?}");
         Ok(())
     }
 }
@@ -31,17 +32,39 @@ pub struct Artist {
     name: String,
 }
 
+impl Artist {
+    pub fn new(name: String) -> Self {
+        Self { name }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Album {
     name: String,
-    cover_path: String,
+    cover_path: Option<String>,
+}
+
+impl Album {
+    pub fn new(name: String, cover_path: Option<String>) -> Self {
+        Self { name, cover_path }
+    }
 }
 
 #[derive(Debug)]
 pub struct Track {
     path: String,
-    name: String,
-    album_order: i32,
+    name: Option<String>,
+    album_order: Option<usize>,
+}
+
+impl Track {
+    pub fn new(path: String, name: Option<String>, album_order: Option<usize>) -> Self {
+        Self {
+            path,
+            name,
+            album_order,
+        }
+    }
 }
 
 impl Into<AudioFile> for &Track {

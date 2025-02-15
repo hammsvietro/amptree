@@ -1,5 +1,5 @@
-use cpal::traits::{DeviceTrait, HostTrait};
-use cpal::{Device, FromSample, Sample, SampleRate, StreamConfig};
+use cpal::traits::HostTrait;
+use cpal::Device;
 
 mod decoder;
 mod player;
