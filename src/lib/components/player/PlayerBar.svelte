@@ -7,11 +7,9 @@
 
 	let progressBar: ProgressBar | null = null;
 	let progress = 0;
-	let current = 0;
 	let total = 0;
 	const unsubscribe = subscribeToEventBus((event) => {
 		progress = (event?.percentage ?? 0) * 100;
-		current = event?.playedSecs;
 		total = event?.totalDurationSecs;
 		if (progressBar == null) return;
 		progressBar.setProgress(progress);
@@ -35,7 +33,7 @@
 </script>
 
 <div
-	class="w-full bg-amptree-surface h-20 border-t border-amptree-border flex justify-center items-center"
+	class="flex h-20 w-full items-center justify-center border-t border-amptree-border bg-amptree-surface"
 >
 	<div class="w-1/2">
 		<ProgressBar bind:this={progressBar} on:change={handleSeek} />

@@ -60,12 +60,12 @@ async fn is_audio_file(path: &str) -> anyhow::Result<bool> {
         return Ok(false);
     };
     let mut buf = [0u8; 16];
-    let magic_number_bytes_result = file.read_exact(&mut buf).await;
-    let Ok(magic_number_bytes) = magic_number_bytes_result else {
-        return Ok(false);
+    let bytes_read = match file.read(&mut buf).await {
+        Ok(n) => n,
+        Err(_) => return Ok(false),
     };
     Ok(matches!(
-        infer::get(&buf[..magic_number_bytes]),
+        infer::get(&buf[..bytes_read]),
         Some(kind) if kind.mime_type().starts_with("audio/")
     ))
 }

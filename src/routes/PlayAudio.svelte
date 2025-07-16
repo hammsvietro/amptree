@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { invoke } from '@tauri-apps/api/core';
 	import { playAudio, pause, resume, seek, queue, skip } from '../lib/backend/commands';
-	let errorMessage: String | null;
+	let errorMessage: string | null = null;
 	const path = '/Users/pedrovietro/Downloads/sample3.flac';
 
 	const doPlayAudio = () => {
@@ -10,18 +9,18 @@
 		});
 	};
 	const doPause = () => {
-		invoke('pause', { path }).catch((err: string) => {
+		pause().catch((err: string) => {
 			errorMessage = err;
 		});
 	};
 	const doResume = () => {
-		invoke('resume', { path }).catch((err: string) => {
+		resume().catch((err: string) => {
 			errorMessage = err;
 		});
 	};
 
 	const doSeek = (seconds: number) => {
-		invoke('seek', { seconds }).catch((err: string) => {
+		seek(seconds).catch((err: string) => {
 			errorMessage = err;
 		});
 	};

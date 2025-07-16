@@ -6,7 +6,6 @@ export default {
 			colors: {
 				['amptree-bg']: '#2d2d2d',
 				['amptree-surface']: '#403e3e',
-				['amptree-bg']: '#2d2d2d',
 				['amptree-text']: '#ffffff',
 				['amptree-accent']: '#4db8ff',
 				['amptree-secondary-text']: '#b0b0b0',

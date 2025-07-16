@@ -47,7 +47,7 @@
 	<!-- Hidden range input -->
 
 	<!-- Progress bar container -->
-	<div class="flex items-center justify-items-center h-3 border-none">
+	<div class="flex h-3 items-center justify-items-center border-none">
 		<input
 			type="range"
 			{min}
